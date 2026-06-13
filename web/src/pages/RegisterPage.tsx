@@ -5,8 +5,6 @@ import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { UserRole } from "@/types";
 
 const ROLES: { value: UserRole; label: string; desc: string }[] = [
-  { value: "admin",    label: "Admin",    desc: "Full fleet control" },
-  { value: "owner",    label: "Owner",    desc: "Monitor vehicles" },
   { value: "driver",   label: "Driver",   desc: "Manage trips" },
   { value: "mechanic", label: "Mechanic", desc: "Handle maintenance" },
 ];

@@ -43,7 +43,7 @@ export function useVehicles(ownerId?: string) {
   return { vehicles, loading, error, updateVehicle, deleteVehicle };
 }
 
-export function useJobs(mechanicId?: string, vehicleId?: string) {
+export function useJobs(mechanicId?: string, vehicleId?: string, vehicleIds?: string[]) {
   const [jobs, setJobs] = useState<MaintenanceJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +55,13 @@ export function useJobs(mechanicId?: string, vehicleId?: string) {
       q = query(collection(db, "jobs"), where("assignedMechanicId", "==", mechanicId));
     } else if (vehicleId) {
       q = query(collection(db, "jobs"), where("vehicleId", "==", vehicleId));
+    } else if (vehicleIds) {
+      if (vehicleIds.length === 0) {
+        setJobs([]);
+        setLoading(false);
+        return;
+      }
+      q = query(collection(db, "jobs"), where("vehicleId", "in", vehicleIds.slice(0, 10)));
     } else {
       q = collection(db, "jobs");
     }
@@ -72,7 +79,7 @@ export function useJobs(mechanicId?: string, vehicleId?: string) {
       }
     );
     return unsub;
-  }, [mechanicId, vehicleId]);
+  }, [mechanicId, vehicleId, JSON.stringify(vehicleIds)]);
 
   const addJob = async (data: Omit<MaintenanceJob, "jobId" | "createdAt">) => {
     const ref = doc(collection(db, "jobs"));

@@ -6,11 +6,12 @@ interface Props { onNavigate: (tab: string) => void; }
 
 export default function OwnerOverview({ onNavigate }: Props) {
   const { appUser } = useAuth();
-  const { vehicles, loading } = useVehicles(appUser?.uid);
-  const { jobs } = useJobs();
+  const { vehicles, loading: vehiclesLoading } = useVehicles(appUser?.uid);
+  const vehicleIds = vehicles.map(v => v.vehicleId);
+  const { jobs } = useJobs(undefined, undefined, vehiclesLoading ? undefined : vehicleIds);
   const { users: drivers } = useUsers("driver");
 
-  if (loading) return (
+  if (vehiclesLoading) return (
     <div className="flex items-center justify-center h-64">
       <span className="spinner-brand" />
     </div>

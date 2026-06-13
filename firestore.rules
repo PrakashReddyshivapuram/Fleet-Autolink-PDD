@@ -18,63 +18,107 @@ service cloud.firestore {
       return isAuth() && getUser().role == role;
     }
 
-    // Users — any authenticated user can read; only the owner or an admin can write.
+    function getVehicle(vehicleId) {
+      return get(/databases/$(database)/documents/vehicles/$(vehicleId)).data;
+    }
+
+    function isVehicleOwner(vehicleId) {
+      return isAuth() && getVehicle(vehicleId).ownerId == uid();
+    }
+
+    function isVehicleDriver(vehicleId) {
+      return isAuth() && getVehicle(vehicleId).assignedDriverId == uid();
+    }
+
+    // Users — read own profile or admin reads all. Only non-admin can be self-created (no self-promoting to admin/owner).
     match /users/{userId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && uid() == userId;
-      allow update: if isAuth() && (uid() == userId || isRole('admin'));
+      allow read: if isAuth() && (uid() == userId || isRole('admin'));
+      allow create: if isAuth() && uid() == userId && !(request.resource.data.role in ['admin', 'owner']);
+      allow update: if isAuth() && (
+        (uid() == userId && !(request.resource.data.role in ['admin', 'owner'])) || 
+        isRole('admin')
+      );
       allow delete: if isRole('admin');
     }
 
-    // Vehicles — anyone authenticated can read; only admins can mutate.
+    // Vehicles — admin sees all, owners/drivers see their associated vehicles
     match /vehicles/{vehicleId} {
-      allow read: if isAuth();
+      allow read: if isRole('admin') 
+        || (isRole('owner') && resource.data.ownerId == uid())
+        || (isRole('driver') && resource.data.assignedDriverId == uid());
       allow create, update, delete: if isRole('admin');
     }
 
-    // Maintenance jobs — anyone authenticated can read.
-    // Admins can create, update, delete.
-    // Mechanics can only update jobs that are assigned to them.
+    // Maintenance jobs
     match /jobs/{jobId} {
-      allow read: if isAuth();
+      allow read: if isRole('admin')
+        || (isRole('mechanic') && resource.data.assignedMechanicId == uid())
+        || (isRole('owner') && isVehicleOwner(resource.data.vehicleId));
       allow create: if isRole('admin');
       allow update: if isRole('admin')
-        || (isRole('mechanic') && resource.data.assignedMechanicId == uid());
+        || (isRole('mechanic') 
+            && resource.data.assignedMechanicId == uid() 
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'notes', 'completedAt'])
+           );
       allow delete: if isRole('admin');
     }
 
-    // Trips — anyone authenticated can read.
-    // Drivers can create their own trips and update only their own.
-    // Admins can do everything.
+    // Trips
     match /trips/{tripId} {
-      allow read: if isAuth();
+      allow read: if isRole('admin') 
+        || (isRole('driver') && resource.data.driverId == uid())
+        || (isRole('owner') && isVehicleOwner(resource.data.vehicleId));
       allow create: if isAuth() && (isRole('driver') || isRole('admin'))
-        && request.resource.data.driverId == uid();
-      allow update: if isAuth()
-        && (isRole('admin') || (isRole('driver') && resource.data.driverId == uid()));
+        && request.resource.data.driverId == uid()
+        && isVehicleDriver(request.resource.data.vehicleId);
+      allow update: if isAuth() && (
+        isRole('admin') || 
+        (isRole('driver') && resource.data.driverId == uid() && isVehicleDriver(resource.data.vehicleId))
+      );
       allow delete: if isRole('admin');
     }
 
-    // Service reminders — any authenticated user can read.
-    // Drivers and admins can create; drivers can update their own vehicle's reminders;
-    // admins can do everything.
+    // Service reminders
     match /serviceReminders/{reminderId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-        && (isRole('admin') || isRole('driver') || isRole('owner'));
-      allow update: if isAuth()
-        && (isRole('admin') || isRole('driver') || isRole('owner'));
+      allow read: if isRole('admin')
+        || (isRole('driver') && isVehicleDriver(resource.data.vehicleId))
+        || (isRole('owner') && isVehicleOwner(resource.data.vehicleId));
+      allow create: if isAuth() && (
+        isRole('admin') ||
+        (isRole('driver') && isVehicleDriver(request.resource.data.vehicleId)) ||
+        (isRole('owner') && isVehicleOwner(request.resource.data.vehicleId))
+      );
+      allow update: if isAuth() && (
+        isRole('admin') ||
+        (isRole('driver') && isVehicleDriver(resource.data.vehicleId)) ||
+        (isRole('owner') && isVehicleOwner(resource.data.vehicleId))
+      );
       allow delete: if isRole('admin');
     }
 
-    // Service records — any authenticated user can read.
-    // Admins and owners can create and update; only admins can delete.
+    // Service records
     match /serviceRecords/{recordId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-        && (isRole('admin') || isRole('owner'));
-      allow update: if isAuth()
-        && (isRole('admin') || isRole('owner'));
+      allow read: if isRole('admin')
+        || (isRole('owner') && isVehicleOwner(resource.data.vehicleId))
+        || (isRole('driver') && isVehicleDriver(resource.data.vehicleId));
+      allow create: if isAuth() && (
+        isRole('admin') ||
+        (isRole('owner') && isVehicleOwner(request.resource.data.vehicleId))
+      );
+      allow update: if isAuth() && (
+        isRole('admin') ||
+        (isRole('owner') && isVehicleOwner(resource.data.vehicleId))
+      );
+      allow delete: if isRole('admin');
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read, update: if isAuth() && (
+        resource.data.recipientUid == uid() || 
+        (resource.data.recipientUid == 'admin_broadcast' && isRole('admin'))
+      );
+      allow create: if isAuth();
       allow delete: if isRole('admin');
     }
   }

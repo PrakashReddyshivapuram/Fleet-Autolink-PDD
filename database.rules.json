@@ -8,6 +8,12 @@
           newData.child('driverId').val() === auth.uid
         )"
       }
+    },
+    "emergencyAlerts": {
+      "$driverId": {
+        ".read": "auth != null",
+        ".write": "auth != null && $driverId === auth.uid"
+      }
     }
   }
 }

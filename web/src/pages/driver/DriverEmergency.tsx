@@ -112,11 +112,15 @@ export default function DriverEmergency() {
   const [calledService, setCalledService] = useState<string | null>(null);
   const { appUser } = useAuth();
 
-  const handleSOS = () => {
+  const handleSOS = async () => {
     setSosPulsing(true);
     if (appUser) {
       const payload = { driverId: appUser.uid, driverName: appUser.name ?? "Driver", vehicleId: null, vehiclePlate: null, vehicleMake: null, lat: null, lng: null, service: "Police / Emergency SOS", phone: "100", timestamp: Date.now() };
-      try { rtdbSet(dbRef(rtdb, `emergencyAlerts/${appUser.uid}`), payload); } catch (e) { console.error(e); }
+      try {
+        await rtdbSet(dbRef(rtdb, `emergencyAlerts/${appUser.uid}`), payload);
+      } catch (e) {
+        alert("Failed to broadcast emergency signal to fleet manager. Please call emergency services directly.");
+      }
     }
     window.open("tel:100");
     setTimeout(() => setSosPulsing(false), 3000);
@@ -148,7 +152,11 @@ export default function DriverEmergency() {
       phone: s.number,
       timestamp: Date.now(),
     };
-    try { await rtdbSet(dbRef(rtdb, `emergencyAlerts/${appUser.uid}`), payload); } catch (e) { console.error("RTDB write failed", e); }
+    try {
+      await rtdbSet(dbRef(rtdb, `emergencyAlerts/${appUser.uid}`), payload);
+    } catch (e) {
+      alert("Failed to broadcast emergency signal to fleet manager. Please call the emergency number directly.");
+    }
     window.open(`tel:${s.number}`);
   };
 

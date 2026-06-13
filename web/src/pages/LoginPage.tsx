@@ -11,6 +11,8 @@ const TEST_ACCOUNTS: { role: UserRole; label: string; email: string; name: strin
   { role: "mechanic", label: "Mechanic", email: "mechanic@fleet.dev", name: "Mechanic Pro",  accent: "#d97706" },
 ];
 const DEV_PASSWORD = "test1234";
+// Demo quick-login buttons. Set to false to hide on the live site.
+const SHOW_DEMO_LOGINS = true;
 
 const GoogleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -22,8 +24,6 @@ const GoogleIcon = () => (
 );
 
 const ROLES: { value: UserRole; label: string; desc: string }[] = [
-  { value: "admin",    label: "Admin",    desc: "Full fleet control" },
-  { value: "owner",    label: "Owner",    desc: "Monitor vehicles" },
   { value: "driver",   label: "Driver",   desc: "Manage trips" },
   { value: "mechanic", label: "Mechanic", desc: "Handle jobs" },
 ];
@@ -219,36 +219,38 @@ export default function LoginPage() {
               </p>
 
               {/* ── Dev quick-login ─────────────────────────── */}
-              <div className="mt-6 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <FlaskConical size={11} className="text-zinc-600" />
-                  <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Test accounts</span>
-                  <span className="text-[10px] text-zinc-700 ml-auto">pw: test1234</span>
+              {SHOW_DEMO_LOGINS && (
+                <div className="mt-6 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <FlaskConical size={11} className="text-zinc-600" />
+                    <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Test accounts</span>
+                    <span className="text-[10px] text-zinc-700 ml-auto">pw: test1234</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TEST_ACCOUNTS.map(acc => (
+                      <button
+                        key={acc.role}
+                        onClick={() => handleDevLogin(acc)}
+                        disabled={devLoading !== null}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all duration-150 disabled:opacity-50"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = `${acc.accent}18`)}
+                        onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}>
+                        {devLoading === acc.role ? (
+                          <span className="w-3 h-3 border border-zinc-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                        ) : (
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: acc.accent }} />
+                        )}
+                        <span className="text-xs font-semibold text-zinc-400">{acc.label}</span>
+                        <span className="text-[10px] text-zinc-700 ml-auto font-mono truncate">{acc.email.split("@")[0]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-700 text-center mt-2.5 leading-relaxed">
+                    First click creates the account · data persists in Firebase
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {TEST_ACCOUNTS.map(acc => (
-                    <button
-                      key={acc.role}
-                      onClick={() => handleDevLogin(acc)}
-                      disabled={devLoading !== null}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all duration-150 disabled:opacity-50"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = `${acc.accent}18`)}
-                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}>
-                      {devLoading === acc.role ? (
-                        <span className="w-3 h-3 border border-zinc-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                      ) : (
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: acc.accent }} />
-                      )}
-                      <span className="text-xs font-semibold text-zinc-400">{acc.label}</span>
-                      <span className="text-[10px] text-zinc-700 ml-auto font-mono truncate">{acc.email.split("@")[0]}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-zinc-700 text-center mt-2.5 leading-relaxed">
-                  First click creates the account · data persists in Firebase
-                </p>
-              </div>
+              )}
             </>
           ) : (
             /* Complete Google profile */

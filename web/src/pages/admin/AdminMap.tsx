@@ -18,6 +18,14 @@ function timeAgo(timestamp: number): string {
   return `${Math.floor(mins / 60)}h ago`;
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+}
+
 export default function AdminMap() {
   const mapRef       = useRef<HTMLDivElement>(null);
   const mapInstance  = useRef<unknown>(null);
@@ -80,9 +88,9 @@ export default function AdminMap() {
 
       const popupHtml = `
         <div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;min-width:200px;padding:2px 0">
-          <p style="font-weight:800;font-size:13px;color:#0f172a;margin:0 0 6px">${label}</p>
-          <p style="font-size:12px;color:#475569;margin:0 0 3px">Driver: <strong style="color:#0f172a">${driver?.name ?? "—"}</strong></p>
-          <p style="font-size:12px;color:#475569;margin:0 0 3px">Plate: <code style="color:#0f172a;background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px">${vehicle?.plateNumber ?? "—"}</code></p>
+          <p style="font-weight:800;font-size:13px;color:#0f172a;margin:0 0 6px">${escapeHtml(label)}</p>
+          <p style="font-size:12px;color:#475569;margin:0 0 3px">Driver: <strong style="color:#0f172a">${escapeHtml(driver?.name ?? "—")}</strong></p>
+          <p style="font-size:12px;color:#475569;margin:0 0 3px">Plate: <code style="color:#0f172a;background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px">${escapeHtml(vehicle?.plateNumber ?? "—")}</code></p>
           <p style="font-size:11px;color:#94a3b8;margin:4px 0 2px">Lat: ${loc.lat.toFixed(5)} · Lng: ${loc.lng.toFixed(5)}</p>
           <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
             <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${isMoving ? "#10b981" : "#f59e0b"};flex-shrink:0"></span>

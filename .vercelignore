@@ -1,0 +1,9 @@
+/mobile
+/shared
+/Vulnerability Test Results
+/android
+*.log
+/firebase.json
+/firestore.rules
+/database.rules.json
+/README.md
