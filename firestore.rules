@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function getUser() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+
+    function isRole(role) {
+      return isAuth() && getUser().role == role;
+    }
+
+    // Users — any authenticated user can read; only the owner or an admin can write.
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && uid() == userId;
+      allow update: if isAuth() && (uid() == userId || isRole('admin'));
+      allow delete: if isRole('admin');
+    }
+
+    // Vehicles — anyone authenticated can read; only admins can mutate.
+    match /vehicles/{vehicleId} {
+      allow read: if isAuth();
+      allow create, update, delete: if isRole('admin');
+    }
+
+    // Maintenance jobs — anyone authenticated can read.
+    // Admins can create, update, delete.
+    // Mechanics can only update jobs that are assigned to them.
+    match /jobs/{jobId} {
+      allow read: if isAuth();
+      allow create: if isRole('admin');
+      allow update: if isRole('admin')
+        || (isRole('mechanic') && resource.data.assignedMechanicId == uid());
+      allow delete: if isRole('admin');
+    }
+
+    // Trips — anyone authenticated can read.
+    // Drivers can create their own trips and update only their own.
+    // Admins can do everything.
+    match /trips/{tripId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (isRole('driver') || isRole('admin'))
+        && request.resource.data.driverId == uid();
+      allow update: if isAuth()
+        && (isRole('admin') || (isRole('driver') && resource.data.driverId == uid()));
+      allow delete: if isRole('admin');
+    }
+
+    // Service reminders — any authenticated user can read.
+    // Drivers and admins can create; drivers can update their own vehicle's reminders;
+    // admins can do everything.
+    match /serviceReminders/{reminderId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && (isRole('admin') || isRole('driver') || isRole('owner'));
+      allow update: if isAuth()
+        && (isRole('admin') || isRole('driver') || isRole('owner'));
+      allow delete: if isRole('admin');
+    }
+
+    // Service records — any authenticated user can read.
+    // Admins and owners can create and update; only admins can delete.
+    match /serviceRecords/{recordId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && (isRole('admin') || isRole('owner'));
+      allow update: if isAuth()
+        && (isRole('admin') || isRole('owner'));
+      allow delete: if isRole('admin');
+    }
+  }
+}

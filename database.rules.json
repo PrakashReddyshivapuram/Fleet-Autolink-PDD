@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "liveLocations": {
+      "$vehicleId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (
+          !newData.exists() ||
+          newData.child('driverId').val() === auth.uid
+        )"
+      }
+    }
+  }
+}
