@@ -49,6 +49,16 @@ jobs:
         continue-on-error: true
         run: npm audit --json > ../mobile-audit.json 2>/dev/null || true
 
+      # ──────────────────── BACKEND (Security Rules) ────────────
+      - name: 📦 Install Backend Test Dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: 🔐 Run Backend Security Tests
+        working-directory: backend
+        continue-on-error: true
+        run: npx jest --json --outputFile=../backend-results.json 2>/dev/null || true
+
       # ──────────────────── REPORT ──────────────────────────────
       - name: 📊 Generate Summary Report & Excel CSV
         run: |
@@ -152,6 +162,42 @@ jobs:
           L('---');
           L('');
 
+          // ── Backend Security Tests ──────────────────────────────────
+          L('## 🔐 Backend Security Tests');
+          L('> **Scope:** Firebase Security Rules (Firestore + RTDB) + Source Code Static Analysis');
+          L('> **Framework:** Jest (Node.js, no emulator needed — pure rule-text analysis)');
+          L('');
+          const br = readJSON('backend-results.json');
+          if (br) {
+            const pass   = br.numPassedTests  || 0;
+            const fail   = br.numFailedTests  || 0;
+            const total  = br.numTotalTests   || 0;
+            const suites = br.numTotalTestSuites || 0;
+            L(fail === 0
+              ? `> ### ✅ ALL ${total} SECURITY CHECKS PASSED across ${suites} suite(s)`
+              : `> ### ❌ ${fail} of ${total} SECURITY CHECKS FAILED`);
+            L('');
+            L('| # | Security Suite | Check | Status | Duration |');
+            L('|---|---------------|-------|:------:|:--------:|');
+            let i = 1;
+            for (const suite of (br.testResults || [])) {
+              const suiteName = (suite.testFilePath || '').split('/').pop().replace(/\.test\.js$/, '');
+              for (const t of (suite.assertionResults || [])) {
+                const status = t.status === 'passed' ? '✅ PASS' : '❌ FAIL';
+                const dur    = typeof t.duration === 'number' ? `${t.duration}ms` : '—';
+                L(`| ${i} | \`${suiteName}\` | ${t.fullName || t.title} | ${status} | ${dur} |`);
+                csvRows.push([i, 'Backend-Security', suiteName, t.fullName || t.title, t.status === 'passed' ? 'PASS' : 'FAIL', typeof t.duration === 'number' ? t.duration : '']);
+                i++;
+              }
+            }
+          } else {
+            L('> ⚠️ Backend security test results could not be loaded.');
+          }
+
+          L('');
+          L('---');
+          L('');
+
           // ── Security Advisory (Informational) ────────────────────
           L('## 🔒 Security Advisory Scan');
           L('> ℹ️ **Informational only — does NOT affect build status.**');
@@ -236,6 +282,12 @@ jobs:
           } else {
             L('| 📱 **Mobile Tests** | Results unavailable | ⚠️ N/A |');
           }
+          if (br) {
+            const ok = br.numFailedTests === 0;
+            L(`| 🔐 **Backend Security** | ${br.numPassedTests} / ${br.numTotalTests} checks passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
+          } else {
+            L('| 🔐 **Backend Security** | Results unavailable | ⚠️ N/A |');
+          }
 
           const wa = readJSON('web-audit.json');
           const ma = readJSON('mobile-audit.json');
@@ -252,9 +304,9 @@ jobs:
             L(`| 🔒 **Mobile Security** | ${t} advisories (C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low}) — informational | ${icon} |`);
           }
 
-          const totalPassed = (wr?.numPassedTests || 0) + (mr?.numPassedTests || 0);
-          const totalFailed = (wr?.numFailedTests || 0) + (mr?.numFailedTests || 0);
-          const totalTests  = (wr?.numTotalTests  || 0) + (mr?.numTotalTests  || 0);
+          const totalPassed = (wr?.numPassedTests || 0) + (mr?.numPassedTests || 0) + (br?.numPassedTests || 0);
+          const totalFailed = (wr?.numFailedTests || 0) + (mr?.numFailedTests || 0) + (br?.numFailedTests || 0);
+          const totalTests  = (wr?.numTotalTests  || 0) + (mr?.numTotalTests  || 0) + (br?.numTotalTests  || 0);
 
           L(`| 🧮 **Total** | ${totalPassed} / ${totalTests} test cases passed | ${totalFailed === 0 ? '✅ ALL PASS' : '❌ FAILURES'} |`);
           L(`| 👤 **Contributor** | ${contributor} | — |`);
@@ -294,11 +346,13 @@ jobs:
             const fs = require('fs');
             const wr = JSON.parse(fs.readFileSync('web-results.json', 'utf8'));
             const mr = JSON.parse(fs.readFileSync('mobile-results.json', 'utf8'));
-            const failed = (wr.numFailedTests || 0) + (mr.numFailedTests || 0);
-            const passed = (wr.numPassedTests || 0) + (mr.numPassedTests || 0);
-            const total  = (wr.numTotalTests  || 0) + (mr.numTotalTests  || 0);
-            console.log('Web    : ' + wr.numPassedTests + '/' + wr.numTotalTests + ' passed');
-            console.log('Mobile : ' + mr.numPassedTests + '/' + mr.numTotalTests + ' passed');
+            const br     = JSON.parse(fs.readFileSync('backend-results.json', 'utf8'));
+            const failed = (wr.numFailedTests || 0) + (mr.numFailedTests || 0) + (br.numFailedTests || 0);
+            const passed = (wr.numPassedTests || 0) + (mr.numPassedTests || 0) + (br.numPassedTests || 0);
+            const total  = (wr.numTotalTests  || 0) + (mr.numTotalTests  || 0) + (br.numTotalTests  || 0);
+            console.log('Web      : ' + wr.numPassedTests + '/' + wr.numTotalTests + ' passed');
+            console.log('Mobile   : ' + mr.numPassedTests + '/' + mr.numTotalTests + ' passed');
+            console.log('Backend  : ' + br.numPassedTests + '/' + br.numTotalTests + ' passed');
             console.log('TOTAL  : ' + passed + '/' + total + ' passed, ' + failed + ' failed');
             if (failed > 0) {
               console.error('FAILED: ' + failed + ' test case(s) did not pass.');

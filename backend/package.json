@@ -1,0 +1,14 @@
+{
+  "name": "fleet-autolink-backend-security-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firebase Security Rules & codebase security analysis tests",
+  "scripts": {
+    "test": "jest --json --outputFile=../backend-results.json",
+    "test:ci": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "@types/jest": "^29.5.12"
+  }
+}
