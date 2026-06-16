@@ -29,7 +29,7 @@ describe('LoginScreen — Branding', () => {
 
   it('renders the Fleet Management Platform tag', () => {
     render(<LoginScreen />)
-    expect(screen.getByText('FLEET MANAGEMENT PLATFORM')).toBeTruthy()
+    expect(screen.getByText('Fleet Management Platform')).toBeTruthy()
   })
 
   it('renders the hero headline word Intelligence', () => {

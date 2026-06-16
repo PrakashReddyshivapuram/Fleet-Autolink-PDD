@@ -50,7 +50,7 @@ jobs:
         run: npm audit --json > ../mobile-audit.json 2>/dev/null || true
 
       # ──────────────────── REPORT ──────────────────────────────
-      - name: 📊 Generate Summary Report
+      - name: 📊 Generate Summary Report & Excel CSV
         run: |
           cat > /tmp/report.js << 'REPORT_EOF'
           const fs = require('fs');
@@ -63,11 +63,19 @@ jobs:
           const L = (s = '') => lines.push(s);
           const summaryFile = process.env.GITHUB_STEP_SUMMARY;
 
+          const contributor = 'Abinesh-10';
+          const repo        = 'Fleet-Autolink-PDD';
+
           // ── Header ──────────────────────────────────────────────
           L('# 🚀 Fleet AutoLink — CI Test & Security Report');
           L('');
-          L(`> 📅 **Generated:** ${new Date().toUTCString()}`);
-          L(`> 🔁 **Branch:** \`main\` &nbsp;|&nbsp; 🏗️ **Platform:** Ubuntu Latest &nbsp;|&nbsp; ⚙️ **Node:** 22`);
+          L('| Field | Value |');
+          L('|-------|-------|');
+          L(`| 📅 Generated | ${new Date().toUTCString()} |`);
+          L(`| 👤 Contributor | **${contributor}** |`);
+          L(`| 📁 Repository | \`${repo}\` |`);
+          L(`| 🌿 Branch | \`main\` |`);
+          L(`| ⚙️ Node | 22 &nbsp;\\| &nbsp;Platform: Ubuntu Latest |`);
           L('');
           L('---');
           L('');
@@ -77,10 +85,12 @@ jobs:
           L('> **Framework:** Vitest + React Testing Library + jsdom');
           L('');
           const wr = readJSON('web-results.json');
+          const csvRows = [['#', 'Platform', 'Suite', 'Test Case', 'Status', 'Duration (ms)']];
+
           if (wr) {
-            const pass  = wr.numPassedTests   || 0;
-            const fail  = wr.numFailedTests   || 0;
-            const total = wr.numTotalTests    || 0;
+            const pass   = wr.numPassedTests  || 0;
+            const fail   = wr.numFailedTests  || 0;
+            const total  = wr.numTotalTests   || 0;
             const suites = wr.numTotalTestSuites || 0;
             L(fail === 0
               ? `> ### ✅ ALL ${total} TEST CASES PASSED across ${suites} suite(s)`
@@ -94,7 +104,9 @@ jobs:
               for (const t of (suite.assertionResults || [])) {
                 const status = t.status === 'passed' ? '✅ PASS' : '❌ FAIL';
                 const dur    = typeof t.duration === 'number' ? `${t.duration}ms` : '—';
-                L(`| ${i++} | \`${name}\` | ${t.title} | ${status} | ${dur} |`);
+                L(`| ${i} | \`${name}\` | ${t.title} | ${status} | ${dur} |`);
+                csvRows.push([i, 'Web', name, t.title, t.status === 'passed' ? 'PASS' : 'FAIL', typeof t.duration === 'number' ? t.duration : '']);
+                i++;
               }
             }
           } else {
@@ -111,9 +123,9 @@ jobs:
           L('');
           const mr = readJSON('mobile-results.json');
           if (mr) {
-            const pass  = mr.numPassedTests   || 0;
-            const fail  = mr.numFailedTests   || 0;
-            const total = mr.numTotalTests    || 0;
+            const pass   = mr.numPassedTests  || 0;
+            const fail   = mr.numFailedTests  || 0;
+            const total  = mr.numTotalTests   || 0;
             const suites = mr.numTotalTestSuites || 0;
             L(fail === 0
               ? `> ### ✅ ALL ${total} TEST CASES PASSED across ${suites} suite(s)`
@@ -127,7 +139,9 @@ jobs:
               for (const t of (suite.assertionResults || [])) {
                 const status = t.status === 'passed' ? '✅ PASS' : '❌ FAIL';
                 const dur    = typeof t.duration === 'number' ? `${t.duration}ms` : '—';
-                L(`| ${i++} | \`${name}\` | ${t.title} | ${status} | ${dur} |`);
+                L(`| ${i} | \`${name}\` | ${t.title} | ${status} | ${dur} |`);
+                csvRows.push([i, 'Mobile', name, t.title, t.status === 'passed' ? 'PASS' : 'FAIL', typeof t.duration === 'number' ? t.duration : '']);
+                i++;
               }
             }
           } else {
@@ -138,9 +152,10 @@ jobs:
           L('---');
           L('');
 
-          // ── Security Scan ────────────────────────────────────────
-          L('## 🔒 Security Vulnerability Scan');
-          L('> **Tool:** npm audit — checks all dependencies against the npm Advisory Database (CVE)');
+          // ── Security Advisory (Informational) ────────────────────
+          L('## 🔒 Security Advisory Scan');
+          L('> ℹ️ **Informational only — does NOT affect build status.**');
+          L('> Tool: `npm audit` — checks dependencies against the npm Advisory Database (CVE).');
           L('');
 
           for (const [label, path] of [['🌐 Web', 'web-audit.json'], ['📱 Mobile', 'mobile-audit.json']]) {
@@ -150,19 +165,19 @@ jobs:
             if (a && a.metadata && a.metadata.vulnerabilities) {
               const v     = a.metadata.vulnerabilities;
               const total = (v.critical||0) + (v.high||0) + (v.moderate||0) + (v.low||0);
-              const risk  = v.critical > 0 ? '🔴 CRITICAL RISK'
-                          : v.high     > 0 ? '🟠 HIGH RISK'
-                          : v.moderate > 0 ? '🟡 MODERATE RISK'
-                          : '✅ LOW RISK';
+              const risk  = v.critical > 0 ? '🔴 CRITICAL'
+                          : v.high     > 0 ? '🟠 HIGH'
+                          : v.moderate > 0 ? '🟡 MODERATE'
+                          : '✅ CLEAN';
 
-              L(`**Overall Risk: ${risk}** — ${total} vulnerabilities found`);
+              L(`**Risk Level: ${risk}** — ${total} advisories found (informational)`);
               L('');
-              L('| Severity | Count | Action |');
-              L('|----------|:-----:|--------|');
-              L(`| 🔴 Critical | **${v.critical||0}** | ${v.critical > 0 ? '🚨 Patch Immediately' : '✅ Clear'} |`);
-              L(`| 🟠 High     | **${v.high||0}**     | ${v.high     > 0 ? '⚠️ Patch Soon'        : '✅ Clear'} |`);
-              L(`| 🟡 Moderate | **${v.moderate||0}** | ${v.moderate > 0 ? '📋 Plan to Patch'     : '✅ Clear'} |`);
-              L(`| 🟢 Low      | **${v.low||0}**      | ${v.low      > 0 ? '📋 Monitor'           : '✅ Clear'} |`);
+              L('| Severity | Count | Recommendation |');
+              L('|----------|:-----:|----------------|');
+              L(`| 🔴 Critical | **${v.critical||0}** | ${v.critical > 0 ? 'Run `npm audit fix --force`' : '✅ None'} |`);
+              L(`| 🟠 High     | **${v.high||0}**     | ${v.high     > 0 ? 'Run `npm audit fix`'          : '✅ None'} |`);
+              L(`| 🟡 Moderate | **${v.moderate||0}** | ${v.moderate > 0 ? 'Review and plan update'        : '✅ None'} |`);
+              L(`| 🟢 Low      | **${v.low||0}**      | ${v.low      > 0 ? 'Monitor for updates'           : '✅ None'} |`);
               L('');
 
               if (a.vulnerabilities) {
@@ -175,19 +190,19 @@ jobs:
 
                 if (entries.length > 0) {
                   L('<details>');
-                  L('<summary>📋 Click to expand — Vulnerability Details (top 15 by severity)</summary>');
+                  L('<summary>📋 Expand — Advisory Details (top 15)</summary>');
                   L('');
-                  L('| # | Package | Severity | Vulnerability | Fix Available |');
-                  L('|---|---------|:--------:|--------------|:-------------:|');
+                  L('| # | Package | Severity | Advisory | Fix |');
+                  L('|---|---------|:--------:|---------|:---:|');
                   entries.forEach(([pkg, info], idx) => {
                     const sev  = info.severity || 'unknown';
                     const icon = { critical: '🔴', high: '🟠', moderate: '🟡', low: '🟢' }[sev] || '⚪';
                     const desc = Array.isArray(info.via)
                       ? (info.via.filter(x => typeof x === 'object').map(x => x.title || '').filter(Boolean)[0] || pkg)
                       : String(info.via);
-                    const fix  = info.fixAvailable === true     ? '✅ `npm audit fix`'
-                               : info.fixAvailable             ? '⚠️ Breaking change'
-                               : '❌ No fix yet';
+                    const fix  = info.fixAvailable === true     ? '`npm audit fix`'
+                               : info.fixAvailable             ? '⚠️ Breaking'
+                               : '❌ None';
                     L(`| ${idx+1} | \`${pkg}\` | ${icon} ${sev} | ${String(desc).substring(0, 55)} | ${fix} |`);
                   });
                   L('');
@@ -195,7 +210,7 @@ jobs:
                 }
               }
             } else {
-              L('> ✅ Audit data not available.');
+              L('> ✅ No advisory data — audit was clean or data unavailable.');
             }
             L('');
           }
@@ -211,13 +226,13 @@ jobs:
 
           if (wr) {
             const ok = wr.numFailedTests === 0;
-            L(`| 🌐 **Web Tests** | ${wr.numPassedTests} of ${wr.numTotalTests} test cases passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
+            L(`| 🌐 **Web Tests** | ${wr.numPassedTests} / ${wr.numTotalTests} passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
           } else {
             L('| 🌐 **Web Tests** | Results unavailable | ⚠️ N/A |');
           }
           if (mr) {
             const ok = mr.numFailedTests === 0;
-            L(`| 📱 **Mobile Tests** | ${mr.numPassedTests} of ${mr.numTotalTests} test cases passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
+            L(`| 📱 **Mobile Tests** | ${mr.numPassedTests} / ${mr.numTotalTests} passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
           } else {
             L('| 📱 **Mobile Tests** | Results unavailable | ⚠️ N/A |');
           }
@@ -226,32 +241,52 @@ jobs:
           const ma = readJSON('mobile-audit.json');
           if (wa?.metadata?.vulnerabilities) {
             const v = wa.metadata.vulnerabilities;
-            const total = (v.critical||0)+(v.high||0)+(v.moderate||0)+(v.low||0);
-            const icon  = v.critical > 0 ? '🔴' : v.high > 0 ? '🟠' : v.moderate > 0 ? '🟡' : '🟢';
-            L(`| 🔒 **Web Security** | ${total} vulns — C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low} | ${icon} |`);
+            const t = (v.critical||0)+(v.high||0)+(v.moderate||0)+(v.low||0);
+            const icon = v.critical > 0 ? '🔴' : v.high > 0 ? '🟠' : v.moderate > 0 ? '🟡' : '🟢';
+            L(`| 🔒 **Web Security** | ${t} advisories (C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low}) — informational | ${icon} |`);
           }
           if (ma?.metadata?.vulnerabilities) {
             const v = ma.metadata.vulnerabilities;
-            const total = (v.critical||0)+(v.high||0)+(v.moderate||0)+(v.low||0);
-            const icon  = v.critical > 0 ? '🔴' : v.high > 0 ? '🟠' : v.moderate > 0 ? '🟡' : '🟢';
-            L(`| 🔒 **Mobile Security** | ${total} vulns — C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low} | ${icon} |`);
+            const t = (v.critical||0)+(v.high||0)+(v.moderate||0)+(v.low||0);
+            const icon = v.critical > 0 ? '🔴' : v.high > 0 ? '🟠' : v.moderate > 0 ? '🟡' : '🟢';
+            L(`| 🔒 **Mobile Security** | ${t} advisories (C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low}) — informational | ${icon} |`);
           }
 
-          const webOk = wr ? wr.numFailedTests === 0 : false;
-          const mobOk = mr ? mr.numFailedTests === 0 : false;
+          const totalPassed = (wr?.numPassedTests || 0) + (mr?.numPassedTests || 0);
+          const totalFailed = (wr?.numFailedTests || 0) + (mr?.numFailedTests || 0);
+          const totalTests  = (wr?.numTotalTests  || 0) + (mr?.numTotalTests  || 0);
+
+          L(`| 🧮 **Total** | ${totalPassed} / ${totalTests} test cases passed | ${totalFailed === 0 ? '✅ ALL PASS' : '❌ FAILURES'} |`);
+          L(`| 👤 **Contributor** | ${contributor} | — |`);
           L('');
-          L(webOk && mobOk
-            ? '> ## ✅ OVERALL: All test cases passed. Application quality verified.'
-            : '> ## ❌ OVERALL: One or more test cases failed. Review required.');
+          L(totalFailed === 0
+            ? '> ## ✅ ALL TEST CASES PASSED. Application quality verified.'
+            : `> ## ❌ ${totalFailed} TEST CASE(S) FAILED. Review required.`);
+          L('');
+          L('> 📎 **Download the full test report as a spreadsheet** from the *Artifacts* section below this summary.');
           L('');
           L('---');
           L('');
-          L('*🤖 Auto-generated by Fleet AutoLink CI Pipeline &nbsp;|&nbsp; Fleet AutoLink © 2026*');
+          L(`*🤖 Auto-generated by Fleet AutoLink CI &nbsp;|&nbsp; Contributor: ${contributor} &nbsp;|&nbsp; Fleet AutoLink © 2026*`);
 
           fs.appendFileSync(summaryFile, lines.join('\n') + '\n');
           console.log('✅ Report written to GitHub Step Summary.');
+
+          // ── CSV / Excel export ────────────────────────────────────
+          const escape = v => `"${String(v).replace(/"/g, '""')}"`;
+          const csv    = csvRows.map(row => row.map(escape).join(',')).join('\n');
+          fs.writeFileSync('test-results.csv', csv + '\n');
+          console.log('✅ CSV written: test-results.csv (' + csvRows.length + ' rows)');
           REPORT_EOF
           node /tmp/report.js
+
+      - name: 📎 Upload Test Results (Excel CSV Artifact)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Fleet-AutoLink-Test-Report
+          path: test-results.csv
+          retention-days: 30
 
       - name: ✅ Enforce Test Pass
         run: |
@@ -261,9 +296,13 @@ jobs:
             const mr = JSON.parse(fs.readFileSync('mobile-results.json', 'utf8'));
             const failed = (wr.numFailedTests || 0) + (mr.numFailedTests || 0);
             const passed = (wr.numPassedTests || 0) + (mr.numPassedTests || 0);
-            console.log('Web  : ' + wr.numPassedTests + '/' + wr.numTotalTests + ' passed');
-            console.log('Mobile: ' + mr.numPassedTests + '/' + mr.numTotalTests + ' passed');
-            console.log('Total : ' + passed + ' passed, ' + failed + ' failed');
-            if (failed > 0) { process.exit(1); }
-            console.log('All tests passed!');
+            const total  = (wr.numTotalTests  || 0) + (mr.numTotalTests  || 0);
+            console.log('Web    : ' + wr.numPassedTests + '/' + wr.numTotalTests + ' passed');
+            console.log('Mobile : ' + mr.numPassedTests + '/' + mr.numTotalTests + ' passed');
+            console.log('TOTAL  : ' + passed + '/' + total + ' passed, ' + failed + ' failed');
+            if (failed > 0) {
+              console.error('FAILED: ' + failed + ' test case(s) did not pass.');
+              process.exit(1);
+            }
+            console.log('SUCCESS: All ' + passed + ' test cases passed!');
           "
