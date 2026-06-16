@@ -1,0 +1,271 @@
+name: 🚀 Fleet AutoLink — Test & Security Report
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  report:
+    name: Test Cases & Security Report
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────────────────────────
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # ──────────────────── WEB ─────────────────────────────────
+      - name: 📦 Install Web Dependencies
+        working-directory: web
+        run: npm install
+
+      - name: 🧪 Run Web Tests
+        working-directory: web
+        continue-on-error: true
+        run: npx vitest run --reporter=json --outputFile=../web-results.json
+
+      - name: 🔒 Web Security Audit
+        working-directory: web
+        continue-on-error: true
+        run: npm audit --json > ../web-audit.json 2>/dev/null || true
+
+      # ──────────────────── MOBILE ──────────────────────────────
+      - name: 📦 Install Mobile Dependencies
+        working-directory: mobile
+        run: npm install --legacy-peer-deps
+
+      - name: 🧪 Run Mobile Tests
+        working-directory: mobile
+        continue-on-error: true
+        run: npx jest --json --outputFile=../mobile-results.json 2>/dev/null || true
+
+      - name: 🔒 Mobile Security Audit
+        working-directory: mobile
+        continue-on-error: true
+        run: npm audit --json > ../mobile-audit.json 2>/dev/null || true
+
+      # ──────────────────── REPORT ──────────────────────────────
+      - name: 📊 Generate Summary Report
+        run: |
+          cat > /tmp/report.js << 'REPORT_EOF'
+          const fs = require('fs');
+
+          function readJSON(p) {
+            try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
+          }
+
+          const lines = [];
+          const L = (s = '') => lines.push(s);
+          const summaryFile = process.env.GITHUB_STEP_SUMMARY;
+
+          // ── Header ──────────────────────────────────────────────
+          L('# 🚀 Fleet AutoLink — CI Test & Security Report');
+          L('');
+          L(`> 📅 **Generated:** ${new Date().toUTCString()}`);
+          L(`> 🔁 **Branch:** \`main\` &nbsp;|&nbsp; 🏗️ **Platform:** Ubuntu Latest &nbsp;|&nbsp; ⚙️ **Node:** 22`);
+          L('');
+          L('---');
+          L('');
+
+          // ── Web Tests ───────────────────────────────────────────
+          L('## 🌐 Web Test Results');
+          L('> **Framework:** Vitest + React Testing Library + jsdom');
+          L('');
+          const wr = readJSON('web-results.json');
+          if (wr) {
+            const pass  = wr.numPassedTests   || 0;
+            const fail  = wr.numFailedTests   || 0;
+            const total = wr.numTotalTests    || 0;
+            const suites = wr.numTotalTestSuites || 0;
+            L(fail === 0
+              ? `> ### ✅ ALL ${total} TEST CASES PASSED across ${suites} suite(s)`
+              : `> ### ❌ ${fail} of ${total} TEST CASES FAILED`);
+            L('');
+            L('| # | Test Suite | Test Case | Status | Duration |');
+            L('|---|-----------|-----------|:------:|:--------:|');
+            let i = 1;
+            for (const suite of (wr.testResults || [])) {
+              const name = (suite.testFilePath || '').split('/').pop().replace(/\.test\.[tj]sx?$/, '');
+              for (const t of (suite.assertionResults || [])) {
+                const status = t.status === 'passed' ? '✅ PASS' : '❌ FAIL';
+                const dur    = typeof t.duration === 'number' ? `${t.duration}ms` : '—';
+                L(`| ${i++} | \`${name}\` | ${t.title} | ${status} | ${dur} |`);
+              }
+            }
+          } else {
+            L('> ⚠️ Web test results could not be loaded.');
+          }
+
+          L('');
+          L('---');
+          L('');
+
+          // ── Mobile Tests ─────────────────────────────────────────
+          L('## 📱 Mobile Test Results');
+          L('> **Framework:** Jest + jest-expo + React Native Testing Library');
+          L('');
+          const mr = readJSON('mobile-results.json');
+          if (mr) {
+            const pass  = mr.numPassedTests   || 0;
+            const fail  = mr.numFailedTests   || 0;
+            const total = mr.numTotalTests    || 0;
+            const suites = mr.numTotalTestSuites || 0;
+            L(fail === 0
+              ? `> ### ✅ ALL ${total} TEST CASES PASSED across ${suites} suite(s)`
+              : `> ### ❌ ${fail} of ${total} TEST CASES FAILED`);
+            L('');
+            L('| # | Test Suite | Test Case | Status | Duration |');
+            L('|---|-----------|-----------|:------:|:--------:|');
+            let i = 1;
+            for (const suite of (mr.testResults || [])) {
+              const name = (suite.testFilePath || '').split('/').pop().replace(/\.test\.[tj]sx?$/, '');
+              for (const t of (suite.assertionResults || [])) {
+                const status = t.status === 'passed' ? '✅ PASS' : '❌ FAIL';
+                const dur    = typeof t.duration === 'number' ? `${t.duration}ms` : '—';
+                L(`| ${i++} | \`${name}\` | ${t.title} | ${status} | ${dur} |`);
+              }
+            }
+          } else {
+            L('> ⚠️ Mobile test results could not be loaded.');
+          }
+
+          L('');
+          L('---');
+          L('');
+
+          // ── Security Scan ────────────────────────────────────────
+          L('## 🔒 Security Vulnerability Scan');
+          L('> **Tool:** npm audit — checks all dependencies against the npm Advisory Database (CVE)');
+          L('');
+
+          for (const [label, path] of [['🌐 Web', 'web-audit.json'], ['📱 Mobile', 'mobile-audit.json']]) {
+            L(`### ${label} Dependencies`);
+            L('');
+            const a = readJSON(path);
+            if (a && a.metadata && a.metadata.vulnerabilities) {
+              const v     = a.metadata.vulnerabilities;
+              const total = (v.critical||0) + (v.high||0) + (v.moderate||0) + (v.low||0);
+              const risk  = v.critical > 0 ? '🔴 CRITICAL RISK'
+                          : v.high     > 0 ? '🟠 HIGH RISK'
+                          : v.moderate > 0 ? '🟡 MODERATE RISK'
+                          : '✅ LOW RISK';
+
+              L(`**Overall Risk: ${risk}** — ${total} vulnerabilities found`);
+              L('');
+              L('| Severity | Count | Action |');
+              L('|----------|:-----:|--------|');
+              L(`| 🔴 Critical | **${v.critical||0}** | ${v.critical > 0 ? '🚨 Patch Immediately' : '✅ Clear'} |`);
+              L(`| 🟠 High     | **${v.high||0}**     | ${v.high     > 0 ? '⚠️ Patch Soon'        : '✅ Clear'} |`);
+              L(`| 🟡 Moderate | **${v.moderate||0}** | ${v.moderate > 0 ? '📋 Plan to Patch'     : '✅ Clear'} |`);
+              L(`| 🟢 Low      | **${v.low||0}**      | ${v.low      > 0 ? '📋 Monitor'           : '✅ Clear'} |`);
+              L('');
+
+              if (a.vulnerabilities) {
+                const entries = Object.entries(a.vulnerabilities)
+                  .sort(([, x], [, y]) => {
+                    const ord = { critical: 0, high: 1, moderate: 2, low: 3 };
+                    return (ord[x.severity] ?? 4) - (ord[y.severity] ?? 4);
+                  })
+                  .slice(0, 15);
+
+                if (entries.length > 0) {
+                  L('<details>');
+                  L('<summary>📋 Click to expand — Vulnerability Details (top 15 by severity)</summary>');
+                  L('');
+                  L('| # | Package | Severity | Vulnerability | Fix Available |');
+                  L('|---|---------|:--------:|--------------|:-------------:|');
+                  entries.forEach(([pkg, info], idx) => {
+                    const sev  = info.severity || 'unknown';
+                    const icon = { critical: '🔴', high: '🟠', moderate: '🟡', low: '🟢' }[sev] || '⚪';
+                    const desc = Array.isArray(info.via)
+                      ? (info.via.filter(x => typeof x === 'object').map(x => x.title || '').filter(Boolean)[0] || pkg)
+                      : String(info.via);
+                    const fix  = info.fixAvailable === true     ? '✅ `npm audit fix`'
+                               : info.fixAvailable             ? '⚠️ Breaking change'
+                               : '❌ No fix yet';
+                    L(`| ${idx+1} | \`${pkg}\` | ${icon} ${sev} | ${String(desc).substring(0, 55)} | ${fix} |`);
+                  });
+                  L('');
+                  L('</details>');
+                }
+              }
+            } else {
+              L('> ✅ Audit data not available.');
+            }
+            L('');
+          }
+
+          L('---');
+          L('');
+
+          // ── Executive Summary ────────────────────────────────────
+          L('## 📊 Executive Summary');
+          L('');
+          L('| Area | Details | Result |');
+          L('|------|---------|:------:|');
+
+          if (wr) {
+            const ok = wr.numFailedTests === 0;
+            L(`| 🌐 **Web Tests** | ${wr.numPassedTests} of ${wr.numTotalTests} test cases passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
+          } else {
+            L('| 🌐 **Web Tests** | Results unavailable | ⚠️ N/A |');
+          }
+          if (mr) {
+            const ok = mr.numFailedTests === 0;
+            L(`| 📱 **Mobile Tests** | ${mr.numPassedTests} of ${mr.numTotalTests} test cases passed | ${ok ? '✅ PASS' : '❌ FAIL'} |`);
+          } else {
+            L('| 📱 **Mobile Tests** | Results unavailable | ⚠️ N/A |');
+          }
+
+          const wa = readJSON('web-audit.json');
+          const ma = readJSON('mobile-audit.json');
+          if (wa?.metadata?.vulnerabilities) {
+            const v = wa.metadata.vulnerabilities;
+            const total = (v.critical||0)+(v.high||0)+(v.moderate||0)+(v.low||0);
+            const icon  = v.critical > 0 ? '🔴' : v.high > 0 ? '🟠' : v.moderate > 0 ? '🟡' : '🟢';
+            L(`| 🔒 **Web Security** | ${total} vulns — C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low} | ${icon} |`);
+          }
+          if (ma?.metadata?.vulnerabilities) {
+            const v = ma.metadata.vulnerabilities;
+            const total = (v.critical||0)+(v.high||0)+(v.moderate||0)+(v.low||0);
+            const icon  = v.critical > 0 ? '🔴' : v.high > 0 ? '🟠' : v.moderate > 0 ? '🟡' : '🟢';
+            L(`| 🔒 **Mobile Security** | ${total} vulns — C:${v.critical} H:${v.high} M:${v.moderate} L:${v.low} | ${icon} |`);
+          }
+
+          const webOk = wr ? wr.numFailedTests === 0 : false;
+          const mobOk = mr ? mr.numFailedTests === 0 : false;
+          L('');
+          L(webOk && mobOk
+            ? '> ## ✅ OVERALL: All test cases passed. Application quality verified.'
+            : '> ## ❌ OVERALL: One or more test cases failed. Review required.');
+          L('');
+          L('---');
+          L('');
+          L('*🤖 Auto-generated by Fleet AutoLink CI Pipeline &nbsp;|&nbsp; Fleet AutoLink © 2026*');
+
+          fs.appendFileSync(summaryFile, lines.join('\n') + '\n');
+          console.log('✅ Report written to GitHub Step Summary.');
+          REPORT_EOF
+          node /tmp/report.js
+
+      - name: ✅ Enforce Test Pass
+        run: |
+          node -e "
+            const fs = require('fs');
+            const wr = JSON.parse(fs.readFileSync('web-results.json', 'utf8'));
+            const mr = JSON.parse(fs.readFileSync('mobile-results.json', 'utf8'));
+            const failed = (wr.numFailedTests || 0) + (mr.numFailedTests || 0);
+            const passed = (wr.numPassedTests || 0) + (mr.numPassedTests || 0);
+            console.log('Web  : ' + wr.numPassedTests + '/' + wr.numTotalTests + ' passed');
+            console.log('Mobile: ' + mr.numPassedTests + '/' + mr.numTotalTests + ' passed');
+            console.log('Total : ' + passed + ' passed, ' + failed + ' failed');
+            if (failed > 0) { process.exit(1); }
+            console.log('All tests passed!');
+          "
