@@ -3,8 +3,6 @@ name: 🚀 Fleet AutoLink — Test & Security Report
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   report:
