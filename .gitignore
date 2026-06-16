@@ -15,8 +15,8 @@ firebase-debug.log
 firebase-debug.*.log
 *-debug.log
 
-# Security audit output (kept private)
-Vulnerability Test Results/
+# Security audit output — committed to repo for college project submission
+# Vulnerability Test Results/
 
 # Build output
 dist/
